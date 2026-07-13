@@ -64,7 +64,11 @@ struct TextTranslateView: View {
                             }
                         }
 
-                        wordChips(for: sourceText)
+                        if let word = singleWord(in: sourceText) {
+                            meaningsButton(word)
+                        } else {
+                            wordChips(for: sourceText)
+                        }
 
                         if appState.isTranslating {
                             ProgressView()
@@ -95,7 +99,11 @@ struct TextTranslateView: View {
                                 }
                             }
 
-                            wordChips(for: appState.translatedText)
+                            if let word = singleWord(in: appState.translatedText) {
+                                meaningsButton(word)
+                            } else {
+                                wordChips(for: appState.translatedText)
+                            }
                         }
 
                         if let lastError = appState.lastError {
@@ -134,6 +142,33 @@ struct TextTranslateView: View {
                 appState.scheduleLiveTranslation(text: text)
             }
         }
+    }
+
+    private func singleWord(in text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.contains(where: { $0.isWhitespace }) else { return nil }
+        let cleaned = trimmed.trimmingCharacters(in: .punctuationCharacters)
+        guard !cleaned.isEmpty, canLookUp(term: cleaned) else { return nil }
+        return cleaned
+    }
+
+    private func meaningsButton(_ word: String) -> some View {
+        Button {
+            lookupTerm = word
+        } label: {
+            HStack {
+                Image(systemName: "character.book.closed.fill")
+                Text("Show all meanings")
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.footnote)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
     }
 
     private func wordChips(for text: String) -> some View {
