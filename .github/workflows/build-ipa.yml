@@ -24,7 +24,7 @@ jobs:
         run: |
           set -euo pipefail
           xcodebuild \
-            -project "TranslatorSpike.xcodeproj" \
+            -project "Translate.xcodeproj" \
             -scheme "$SCHEME" \
             -configuration "$CONFIGURATION" \
             -sdk "$SDK" \
