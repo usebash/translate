@@ -14,9 +14,10 @@ final class AppState {
     var translatedText: String = ""
     var isTranslating = false
     var logLines: [String] = []
-    var liveTranslationEnabled = true
     var lastError: String?
 
+    private var lastSource: AppLanguage?
+    private var lastTarget: AppLanguage?
     private var debounceTask: Task<Void, Never>?
     private let speechSynthesizer = AVSpeechSynthesizer()
 
@@ -37,14 +38,13 @@ final class AppState {
 
     func scheduleLiveTranslation(text: String) {
         debounceTask?.cancel()
-        guard liveTranslationEnabled else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             translatedText = ""
             return
         }
         debounceTask = Task {
-            try? await Task.sleep(nanoseconds: 450_000_000)
+            try? await Task.sleep(nanoseconds: 350_000_000)
             guard !Task.isCancelled else { return }
             requestTranslation(text: text)
         }
@@ -59,13 +59,13 @@ final class AppState {
         }
 
         pendingText = text
-        translatedText = ""
         lastError = nil
-        log("Requesting translation \(sourceLanguage.displayName) -> \(targetLanguage.displayName)")
 
-        configuration = nil
-        Task {
-            try? await Task.sleep(nanoseconds: 10_000_000)
+        if configuration != nil, lastSource == sourceLanguage, lastTarget == targetLanguage {
+            configuration?.invalidate()
+        } else {
+            lastSource = sourceLanguage
+            lastTarget = targetLanguage
             configuration = TranslationSession.Configuration(
                 source: sourceLanguage.locale,
                 target: targetLanguage.locale

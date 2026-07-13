@@ -4,9 +4,9 @@ struct TextTranslateView: View {
     @Environment(AppState.self) private var appState
     @State private var sourceText: String = ""
     @State private var lookupTerm: String?
+    @State private var dictation = SpeechDictation()
 
     var body: some View {
-        @Bindable var appState = appState
         NavigationStack {
             ZStack {
                 Color.black.ignoresSafeArea()
@@ -38,13 +38,21 @@ struct TextTranslateView: View {
                                     .foregroundStyle(.gray)
                             }
 
-                            HStack {
-                                Toggle("Live", isOn: $appState.liveTranslationEnabled)
-                                    .toggleStyle(.switch)
-                                    .tint(.white)
+                            if let errorMessage = dictation.errorMessage {
+                                Text(errorMessage)
                                     .font(.footnote)
+                                    .foregroundStyle(.red)
+                            }
 
+                            HStack(spacing: 16) {
                                 Spacer()
+
+                                Button {
+                                    toggleDictation()
+                                } label: {
+                                    Image(systemName: dictation.isListening ? "mic.fill" : "mic")
+                                        .foregroundStyle(dictation.isListening ? .red : .white)
+                                }
 
                                 Button {
                                     appState.speak(sourceText, language: appState.sourceLanguage)
@@ -53,25 +61,15 @@ struct TextTranslateView: View {
                                         .foregroundStyle(.white)
                                 }
                                 .disabled(sourceText.isEmpty)
-
-                                if !appState.liveTranslationEnabled {
-                                    Button {
-                                        appState.requestTranslation(text: sourceText)
-                                    } label: {
-                                        if appState.isTranslating {
-                                            ProgressView()
-                                                .tint(.white)
-                                        } else {
-                                            Image(systemName: "arrow.left.arrow.right")
-                                                .foregroundStyle(.white)
-                                        }
-                                    }
-                                    .disabled(sourceText.isEmpty || appState.isTranslating)
-                                }
                             }
                         }
 
                         wordChips(for: sourceText)
+
+                        if appState.isTranslating {
+                            ProgressView()
+                                .tint(.white)
+                        }
 
                         if !appState.translatedText.isEmpty {
                             glassCard {
@@ -115,6 +113,7 @@ struct TextTranslateView: View {
                 }
             }
             .navigationTitle("Translate")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .sheet(item: Binding(
                 get: { lookupTerm.map { IdentifiableString(value: $0) } },
@@ -124,6 +123,17 @@ struct TextTranslateView: View {
             }
         }
         .tint(.white)
+    }
+
+    private func toggleDictation() {
+        if dictation.isListening {
+            dictation.stop()
+        } else {
+            dictation.start(locale: appState.sourceLanguage.speechRecognitionLocale) { text, _ in
+                sourceText = text
+                appState.scheduleLiveTranslation(text: text)
+            }
+        }
     }
 
     private func wordChips(for text: String) -> some View {
@@ -137,8 +147,8 @@ struct TextTranslateView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(words, id: \.self) { word in
-                            let cleaned = word.trimmingCharacters(in: .punctuationCharacters)
                             Button {
+                                let cleaned = word.trimmingCharacters(in: .punctuationCharacters)
                                 if canLookUp(term: cleaned) {
                                     lookupTerm = cleaned
                                 }
@@ -151,7 +161,6 @@ struct TextTranslateView: View {
                                     .background(.white.opacity(0.08), in: Capsule())
                             }
                             .buttonStyle(.plain)
-                            .disabled(!canLookUp(term: cleaned))
                         }
                     }
                     .padding(.horizontal, 2)

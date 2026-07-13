@@ -133,6 +133,7 @@ struct PhotoTranslateView: View {
                 }
             }
             .navigationTitle("Translate")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .sheet(isPresented: $showCamera) {
                 CameraCaptureView(

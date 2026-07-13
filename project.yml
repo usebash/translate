@@ -1,6 +1,6 @@
-name: TranslatorSpike
+name: Translate
 options:
-  bundleIdPrefix: local.translatorspike
+  bundleIdPrefix: local.translate
   deploymentTarget:
     iOS: "18.0"
   createIntermediateGroups: true
@@ -23,7 +23,7 @@ targets:
       - path: Sources/Translate
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: local.translatorspike.translate
+        PRODUCT_BUNDLE_IDENTIFIER: local.translate.translate
         PRODUCT_NAME: Translate
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: "Translate"
