@@ -44,7 +44,7 @@ final class AppState {
         translatedText = ""
         log("Requesting translation \(sourceLanguage.displayName) -> \(targetLanguage.displayName)")
 
-        if let configuration, lastSource == sourceLanguage, lastTarget == targetLanguage {
+        if var configuration, lastSource == sourceLanguage, lastTarget == targetLanguage {
             configuration.invalidate()
         } else {
             lastSource = sourceLanguage
