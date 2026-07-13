@@ -2,7 +2,7 @@ name: Translate
 options:
   bundleIdPrefix: local.translate
   deploymentTarget:
-    iOS: "18.0"
+    iOS: "26.0"
   createIntermediateGroups: true
 settings:
   base:
@@ -18,7 +18,7 @@ targets:
   Translate:
     type: application
     platform: iOS
-    deploymentTarget: "18.0"
+    deploymentTarget: "26.0"
     sources:
       - path: Sources/Translate
     settings:

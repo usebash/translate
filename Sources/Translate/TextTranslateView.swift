@@ -3,7 +3,7 @@ import SwiftUI
 struct TextTranslateView: View {
     @Environment(AppState.self) private var appState
     @State private var sourceText: String = ""
-    @State private var lookupTerm: String?
+    @State private var lookupRequest: WordLookupRequest?
     @State private var dictation = SpeechDictation()
 
     var body: some View {
@@ -65,9 +65,9 @@ struct TextTranslateView: View {
                         }
 
                         if let word = singleWord(in: sourceText) {
-                            meaningsButton(word)
+                            meaningsButton(word, language: appState.sourceLanguage)
                         } else {
-                            wordChips(for: sourceText)
+                            wordChips(for: sourceText, language: appState.sourceLanguage)
                         }
 
                         if appState.isTranslating {
@@ -100,9 +100,9 @@ struct TextTranslateView: View {
                             }
 
                             if let word = singleWord(in: appState.translatedText) {
-                                meaningsButton(word)
+                                meaningsButton(word, language: appState.targetLanguage)
                             } else {
-                                wordChips(for: appState.translatedText)
+                                wordChips(for: appState.translatedText, language: appState.targetLanguage)
                             }
                         }
 
@@ -123,11 +123,14 @@ struct TextTranslateView: View {
             .navigationTitle("Translate")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
-            .sheet(item: Binding(
-                get: { lookupTerm.map { IdentifiableString(value: $0) } },
-                set: { lookupTerm = $0?.value }
-            )) { item in
-                WordLookupView(term: item.value)
+            .sheet(item: $lookupRequest) { request in
+                WordLookupView(
+                    term: request.term,
+                    wordLanguage: request.language,
+                    explanationLanguage: request.language == appState.sourceLanguage
+                        ? appState.targetLanguage
+                        : appState.sourceLanguage
+                )
             }
         }
         .tint(.white)
@@ -148,13 +151,13 @@ struct TextTranslateView: View {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.contains(where: { $0.isWhitespace }) else { return nil }
         let cleaned = trimmed.trimmingCharacters(in: .punctuationCharacters)
-        guard !cleaned.isEmpty, canLookUp(term: cleaned) else { return nil }
+        guard isLookupCandidate(cleaned) else { return nil }
         return cleaned
     }
 
-    private func meaningsButton(_ word: String) -> some View {
+    private func meaningsButton(_ word: String, language: AppLanguage) -> some View {
         Button {
-            lookupTerm = word
+            lookupRequest = WordLookupRequest(term: word, language: language)
         } label: {
             HStack {
                 Image(systemName: "character.book.closed.fill")
@@ -171,7 +174,7 @@ struct TextTranslateView: View {
         .buttonStyle(.plain)
     }
 
-    private func wordChips(for text: String) -> some View {
+    private func wordChips(for text: String, language: AppLanguage) -> some View {
         let words = text
             .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
             .map(String.init)
@@ -184,8 +187,8 @@ struct TextTranslateView: View {
                         ForEach(words, id: \.self) { word in
                             Button {
                                 let cleaned = word.trimmingCharacters(in: .punctuationCharacters)
-                                if canLookUp(term: cleaned) {
-                                    lookupTerm = cleaned
+                                if isLookupCandidate(cleaned) {
+                                    lookupRequest = WordLookupRequest(term: cleaned, language: language)
                                 }
                             } label: {
                                 Text(word)
@@ -215,7 +218,8 @@ struct TextTranslateView: View {
     }
 }
 
-private struct IdentifiableString: Identifiable {
-    let value: String
-    var id: String { value }
+private struct WordLookupRequest: Identifiable {
+    let term: String
+    let language: AppLanguage
+    var id: String { term + "-" + language.rawValue }
 }
