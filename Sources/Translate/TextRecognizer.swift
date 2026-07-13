@@ -2,8 +2,19 @@ import Vision
 import UIKit
 import AVFoundation
 
+struct TextFragment: Identifiable {
+    let id = UUID()
+    let text: String
+    let boundingBox: CGRect
+}
+
 enum TextRecognizer {
     static func recognizeText(in image: UIImage, languages: [String] = ["en-US", "ru-RU", "de-DE"]) async throws -> String {
+        let fragments = try await recognizeFragments(in: image, languages: languages)
+        return fragments.map(\.text).joined(separator: "\n")
+    }
+
+    static func recognizeFragments(in image: UIImage, languages: [String] = ["en-US", "ru-RU", "de-DE"]) async throws -> [TextFragment] {
         guard let cgImage = image.cgImage else {
             throw NSError(domain: "TextRecognizer", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid image"])
         }
@@ -15,8 +26,11 @@ enum TextRecognizer {
                     return
                 }
                 let observations = request.results as? [VNRecognizedTextObservation] ?? []
-                let lines = observations.compactMap { $0.topCandidates(1).first?.string }
-                continuation.resume(returning: lines.joined(separator: "\n"))
+                let fragments = observations.compactMap { observation -> TextFragment? in
+                    guard let candidate = observation.topCandidates(1).first else { return nil }
+                    return TextFragment(text: candidate.string, boundingBox: observation.boundingBox)
+                }
+                continuation.resume(returning: fragments)
             }
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = true

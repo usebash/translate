@@ -15,11 +15,17 @@ struct ContentView: View {
                 .tabItem {
                     Label("Camera", systemImage: "camera.viewfinder")
                 }
+
+            LiveConversationView()
+                .tabItem {
+                    Label("Live", systemImage: "waveform")
+                }
         }
         .environment(appState)
         .translationTask(appState.configuration) { session in
             await appState.handle(session: session)
         }
+        .tint(.white)
         .preferredColorScheme(.dark)
     }
 }

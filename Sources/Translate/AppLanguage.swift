@@ -23,19 +23,27 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         }
     }
 
+    var speechRecognitionLocale: Locale {
+        switch self {
+        case .english: return Locale(identifier: "en-US")
+        case .russian: return Locale(identifier: "ru-RU")
+        case .german: return Locale(identifier: "de-DE")
+        }
+    }
+
+    var speechSynthesisVoiceLanguage: String {
+        switch self {
+        case .english: return "en-US"
+        case .russian: return "ru-RU"
+        case .german: return "de-DE"
+        }
+    }
+
     var displayName: String {
         switch self {
         case .english: return "English"
         case .russian: return "Russian"
         case .german: return "German"
-        }
-    }
-
-    var flag: String {
-        switch self {
-        case .english: return "🇬🇧"
-        case .russian: return "🇷🇺"
-        case .german: return "🇩🇪"
         }
     }
 }

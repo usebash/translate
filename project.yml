@@ -32,4 +32,5 @@ targets:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_NSCameraUsageDescription: "Camera access is used to capture photos and video for on-device text recognition."
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Photo library access is used to pick images for on-device text recognition."
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Microphone access is used when recording video for text recognition."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Microphone access is used when recording video for text recognition and for live conversation translation."
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Speech recognition is used on-device to transcribe conversations for live translation."

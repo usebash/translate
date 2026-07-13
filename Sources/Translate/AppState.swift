@@ -1,6 +1,7 @@
 import Foundation
 import Translation
 import Observation
+import AVFoundation
 
 @MainActor
 @Observable
@@ -13,9 +14,11 @@ final class AppState {
     var translatedText: String = ""
     var isTranslating = false
     var logLines: [String] = []
+    var liveTranslationEnabled = true
+    var lastError: String?
 
-    private var lastSource: AppLanguage?
-    private var lastTarget: AppLanguage?
+    private var debounceTask: Task<Void, Never>?
+    private let speechSynthesizer = AVSpeechSynthesizer()
 
     func log(_ message: String) {
         let timestamp = DateFormatter.diagnosticsFormatter.string(from: Date())
@@ -32,6 +35,21 @@ final class AppState {
         targetLanguage = temp
     }
 
+    func scheduleLiveTranslation(text: String) {
+        debounceTask?.cancel()
+        guard liveTranslationEnabled else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            translatedText = ""
+            return
+        }
+        debounceTask = Task {
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            guard !Task.isCancelled else { return }
+            requestTranslation(text: text)
+        }
+    }
+
     func requestTranslation(text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -42,13 +60,12 @@ final class AppState {
 
         pendingText = text
         translatedText = ""
+        lastError = nil
         log("Requesting translation \(sourceLanguage.displayName) -> \(targetLanguage.displayName)")
 
-        if var configuration, lastSource == sourceLanguage, lastTarget == targetLanguage {
-            configuration.invalidate()
-        } else {
-            lastSource = sourceLanguage
-            lastTarget = targetLanguage
+        configuration = nil
+        Task {
+            try? await Task.sleep(nanoseconds: 10_000_000)
             configuration = TranslationSession.Configuration(
                 source: sourceLanguage.locale,
                 target: targetLanguage.locale
@@ -67,11 +84,28 @@ final class AppState {
         } catch {
             translatedText = ""
             let nsError = error as NSError
+            lastError = friendlyErrorMessage(for: nsError)
             log("ERROR domain=\(nsError.domain) code=\(nsError.code)")
-            if !nsError.userInfo.isEmpty {
-                log("userInfo=\(nsError.userInfo)")
-            }
         }
+    }
+
+    private func friendlyErrorMessage(for error: NSError) -> String {
+        if error.domain == "Translation.TranslationError" {
+            return "Translation failed (code \(error.code)). This usually means the language pack isn't downloaded yet — retry to trigger the system download prompt, or check Settings > Apps > Translate > Translation Languages."
+        }
+        return error.localizedDescription
+    }
+
+    func speak(_ text: String, language: AppLanguage) {
+        guard !text.isEmpty else { return }
+        let utterance = AVSpeechUtterance(string: text)
+        utterance.voice = AVSpeechSynthesisVoice(language: language.speechSynthesisVoiceLanguage)
+        speechSynthesizer.stopSpeaking(at: .immediate)
+        speechSynthesizer.speak(utterance)
+    }
+
+    func pronunciation(for text: String, language: AppLanguage) -> String? {
+        Transliteration.pronunciation(for: text, language: language)
     }
 }
 
