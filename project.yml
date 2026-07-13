@@ -1,0 +1,35 @@
+name: TranslatorSpike
+options:
+  bundleIdPrefix: local.translatorspike
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    CODE_SIGNING_ALLOWED: NO
+    CODE_SIGNING_REQUIRED: NO
+    CODE_SIGN_IDENTITY: ""
+    CODE_SIGN_ENTITLEMENTS: ""
+    DEVELOPMENT_TEAM: ""
+    SWIFT_VERSION: "5.0"
+    ENABLE_BITCODE: NO
+    TARGETED_DEVICE_FAMILY: "1"
+targets:
+  Translate:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: Sources/Translate
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: local.translatorspike.translate
+        PRODUCT_NAME: Translate
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: "Translate"
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_NSCameraUsageDescription: "Camera access is used to capture photos and video for on-device text recognition."
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Photo library access is used to pick images for on-device text recognition."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Microphone access is used when recording video for text recognition."
