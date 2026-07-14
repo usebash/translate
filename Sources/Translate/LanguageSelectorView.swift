@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LanguageSelectorView: View {
     @Environment(AppState.self) private var appState
+    var onSwap: (() -> Void)? = nil
 
     var body: some View {
         @Bindable var appState = appState
@@ -20,6 +21,7 @@ struct LanguageSelectorView: View {
                 withAnimation(.snappy) {
                     appState.swapLanguages()
                 }
+                onSwap?()
             } label: {
                 Image(systemName: "arrow.left.arrow.right")
                     .font(.system(size: 14, weight: .semibold))

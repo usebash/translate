@@ -11,6 +11,7 @@ struct PhotoTranslateView: View {
     @State private var isRecognizing = false
     @State private var showCamera = false
     @State private var recognitionError: String?
+    @State private var showFullScreenImage = false
 
     var body: some View {
         @Bindable var appState = appState
@@ -19,8 +20,10 @@ struct PhotoTranslateView: View {
                 Color.black.ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: 16) {
-                        LanguageSelectorView()
-                            .padding(.top, 8)
+                        LanguageSelectorView {
+                            if !fragments.isEmpty { translateSelection() }
+                        }
+                        .padding(.top, 8)
 
                         glassCard {
                             HStack(spacing: 12) {
@@ -38,30 +41,25 @@ struct PhotoTranslateView: View {
 
                         if let selectedImage {
                             glassCard {
-                                GeometryReader { proxy in
-                                    let fitRect = aspectFitRect(imageSize: selectedImage.size, in: proxy.size)
-                                    ZStack(alignment: .topLeading) {
-                                        Image(uiImage: selectedImage)
-                                            .resizable()
-                                            .scaledToFit()
-                                            .frame(width: proxy.size.width, height: proxy.size.height)
+                                ZStack(alignment: .topTrailing) {
+                                    FragmentImageView(
+                                        image: selectedImage,
+                                        fragments: fragments,
+                                        selectedFragmentIDs: selectedFragmentIDs,
+                                        onToggle: toggle
+                                    )
+                                    .frame(height: 320)
 
-                                        ForEach(fragments) { fragment in
-                                            let rect = viewRect(for: fragment.boundingBox, fitRect: fitRect)
-                                            Rectangle()
-                                                .fill(selectedFragmentIDs.contains(fragment.id) ? .white.opacity(0.28) : .white.opacity(0.04))
-                                                .overlay(
-                                                    Rectangle().stroke(.white.opacity(selectedFragmentIDs.contains(fragment.id) ? 0.9 : 0.3), lineWidth: 1)
-                                                )
-                                                .frame(width: rect.width, height: rect.height)
-                                                .position(x: rect.midX, y: rect.midY)
-                                                .onTapGesture {
-                                                    toggle(fragment.id)
-                                                }
-                                        }
+                                    Button {
+                                        showFullScreenImage = true
+                                    } label: {
+                                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                            .foregroundStyle(.white)
+                                            .padding(8)
+                                            .background(.black.opacity(0.5), in: Circle())
                                     }
+                                    .padding(8)
                                 }
-                                .frame(height: 320)
 
                                 if !fragments.isEmpty {
                                     Text(selectedFragmentIDs.isEmpty ? "Tap fragments to select, or translate all" : "\(selectedFragmentIDs.count) fragment(s) selected")
@@ -135,6 +133,22 @@ struct PhotoTranslateView: View {
             .navigationTitle("Translate")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
+            .fullScreenCover(isPresented: $showFullScreenImage) {
+                if let selectedImage {
+                    FullScreenFragmentSelector(
+                        image: selectedImage,
+                        fragments: fragments,
+                        selectedFragmentIDs: $selectedFragmentIDs,
+                        isTranslating: appState.isTranslating,
+                        onTranslate: {
+                            translateSelection()
+                        },
+                        onClose: {
+                            showFullScreenImage = false
+                        }
+                    )
+                }
+            }
             .sheet(isPresented: $showCamera) {
                 CameraCaptureView(
                     onImage: { image in
@@ -184,30 +198,6 @@ struct PhotoTranslateView: View {
             : fragments.filter { selectedFragmentIDs.contains($0.id) }
         let text = chosen.map(\.text).joined(separator: "\n")
         appState.requestTranslation(text: text)
-    }
-
-    private func aspectFitRect(imageSize: CGSize, in boundsSize: CGSize) -> CGRect {
-        guard imageSize.width > 0, imageSize.height > 0 else {
-            return CGRect(origin: .zero, size: boundsSize)
-        }
-        let imageAspect = imageSize.width / imageSize.height
-        let boundsAspect = boundsSize.width / boundsSize.height
-        var fitSize = boundsSize
-        if imageAspect > boundsAspect {
-            fitSize.height = boundsSize.width / imageAspect
-        } else {
-            fitSize.width = boundsSize.height * imageAspect
-        }
-        let origin = CGPoint(x: (boundsSize.width - fitSize.width) / 2, y: (boundsSize.height - fitSize.height) / 2)
-        return CGRect(origin: origin, size: fitSize)
-    }
-
-    private func viewRect(for boundingBox: CGRect, fitRect: CGRect) -> CGRect {
-        let x = fitRect.origin.x + boundingBox.origin.x * fitRect.width
-        let height = boundingBox.height * fitRect.height
-        let y = fitRect.origin.y + (1 - boundingBox.origin.y - boundingBox.height) * fitRect.height
-        let width = boundingBox.width * fitRect.width
-        return CGRect(x: x, y: y, width: width, height: height)
     }
 
     private func process(image: UIImage) {
@@ -261,5 +251,139 @@ struct PhotoTranslateView: View {
                 RoundedRectangle(cornerRadius: 20)
                     .stroke(.white.opacity(0.08), lineWidth: 1)
             )
+    }
+}
+
+struct FragmentImageView: View {
+    let image: UIImage
+    let fragments: [TextFragment]
+    let selectedFragmentIDs: Set<UUID>
+    let onToggle: (UUID) -> Void
+
+    var body: some View {
+        GeometryReader { proxy in
+            let fitRect = aspectFitRect(imageSize: image.size, in: proxy.size)
+            ZStack(alignment: .topLeading) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+
+                ForEach(fragments) { fragment in
+                    let rect = viewRect(for: fragment.boundingBox, fitRect: fitRect)
+                    Rectangle()
+                        .fill(selectedFragmentIDs.contains(fragment.id) ? .white.opacity(0.28) : .white.opacity(0.04))
+                        .overlay(
+                            Rectangle().stroke(.white.opacity(selectedFragmentIDs.contains(fragment.id) ? 0.9 : 0.3), lineWidth: 1)
+                        )
+                        .frame(width: rect.width, height: rect.height)
+                        .position(x: rect.midX, y: rect.midY)
+                        .onTapGesture {
+                            onToggle(fragment.id)
+                        }
+                }
+            }
+        }
+    }
+
+    private func aspectFitRect(imageSize: CGSize, in boundsSize: CGSize) -> CGRect {
+        guard imageSize.width > 0, imageSize.height > 0 else {
+            return CGRect(origin: .zero, size: boundsSize)
+        }
+        let imageAspect = imageSize.width / imageSize.height
+        let boundsAspect = boundsSize.width / boundsSize.height
+        var fitSize = boundsSize
+        if imageAspect > boundsAspect {
+            fitSize.height = boundsSize.width / imageAspect
+        } else {
+            fitSize.width = boundsSize.height * imageAspect
+        }
+        let origin = CGPoint(x: (boundsSize.width - fitSize.width) / 2, y: (boundsSize.height - fitSize.height) / 2)
+        return CGRect(origin: origin, size: fitSize)
+    }
+
+    private func viewRect(for boundingBox: CGRect, fitRect: CGRect) -> CGRect {
+        let x = fitRect.origin.x + boundingBox.origin.x * fitRect.width
+        let height = boundingBox.height * fitRect.height
+        let y = fitRect.origin.y + (1 - boundingBox.origin.y - boundingBox.height) * fitRect.height
+        let width = boundingBox.width * fitRect.width
+        return CGRect(x: x, y: y, width: width, height: height)
+    }
+}
+
+struct FullScreenFragmentSelector: View {
+    let image: UIImage
+    let fragments: [TextFragment]
+    @Binding var selectedFragmentIDs: Set<UUID>
+    let isTranslating: Bool
+    let onTranslate: () -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                HStack {
+                    Button {
+                        onClose()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .foregroundStyle(.white)
+                            .padding(10)
+                            .background(.white.opacity(0.12), in: Circle())
+                    }
+                    Spacer()
+                    if !selectedFragmentIDs.isEmpty {
+                        Button("Clear") {
+                            selectedFragmentIDs.removeAll()
+                        }
+                        .foregroundStyle(.white)
+                    }
+                }
+                .padding(16)
+
+                FragmentImageView(
+                    image: image,
+                    fragments: fragments,
+                    selectedFragmentIDs: selectedFragmentIDs,
+                    onToggle: { id in
+                        if selectedFragmentIDs.contains(id) {
+                            selectedFragmentIDs.remove(id)
+                        } else {
+                            selectedFragmentIDs.insert(id)
+                        }
+                    }
+                )
+                .padding(.horizontal, 8)
+
+                VStack(spacing: 12) {
+                    Text(selectedFragmentIDs.isEmpty ? "Tap fragments to select, or translate all" : "\(selectedFragmentIDs.count) fragment(s) selected")
+                        .font(.footnote)
+                        .foregroundStyle(.gray)
+
+                    Button {
+                        onTranslate()
+                        onClose()
+                    } label: {
+                        HStack {
+                            if isTranslating {
+                                ProgressView().tint(.white)
+                            } else {
+                                Image(systemName: "arrow.left.arrow.right")
+                            }
+                            Text(selectedFragmentIDs.isEmpty ? "Translate All" : "Translate Selected")
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
+                    }
+                    .disabled(isTranslating || fragments.isEmpty)
+                }
+                .padding(16)
+            }
+        }
+        .tint(.white)
     }
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct TextTranslateView: View {
     @Environment(AppState.self) private var appState
@@ -12,8 +13,10 @@ struct TextTranslateView: View {
                 Color.black.ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: 16) {
-                        LanguageSelectorView()
-                            .padding(.top, 8)
+                        LanguageSelectorView {
+                            appState.requestTranslation(text: sourceText)
+                        }
+                        .padding(.top, 8)
 
                         glassCard {
                             ZStack(alignment: .topLeading) {
@@ -115,6 +118,10 @@ struct TextTranslateView: View {
             .navigationTitle("Translate")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                hideKeyboard()
+            }
             .sheet(item: Binding(
                 get: { lookupTerm.map { IdentifiableString(value: $0) } },
                 set: { lookupTerm = $0?.value }
@@ -123,6 +130,10 @@ struct TextTranslateView: View {
             }
         }
         .tint(.white)
+    }
+
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
     private func toggleDictation() {
