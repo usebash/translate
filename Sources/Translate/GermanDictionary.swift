@@ -6,9 +6,13 @@ private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.sel
 struct DictionarySense: Identifiable {
     let id = UUID()
     let pos: String
-    let gloss: String
+    let glossRu: String
+    let glossDe: String
     let examples: [String]
     let synonyms: [String]
+
+    var hasCuratedTranslation: Bool { !glossRu.isEmpty }
+    var displayGloss: String { hasCuratedTranslation ? glossRu : glossDe }
 }
 
 struct DictionaryEntry {
@@ -58,7 +62,7 @@ final class GermanDictionary {
     }
 
     private func fetchEntry(headword: String) -> DictionaryEntry? {
-        let sql = "SELECT headword, pos, gloss, examples_json, synonyms_json FROM senses WHERE headword_lower = ? ORDER BY id"
+        let sql = "SELECT headword, pos, gloss_ru, gloss_de, examples_json, synonyms_json FROM senses WHERE headword_lower = ? ORDER BY id"
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return nil }
         defer { sqlite3_finalize(statement) }
@@ -70,10 +74,11 @@ final class GermanDictionary {
         while sqlite3_step(statement) == SQLITE_ROW {
             actualHeadword = string(statement, 0)
             let pos = string(statement, 1)
-            let gloss = string(statement, 2)
-            let examples = decodeStringArray(string(statement, 3))
-            let synonyms = decodeStringArray(string(statement, 4))
-            senses.append(DictionarySense(pos: pos, gloss: gloss, examples: examples, synonyms: synonyms))
+            let glossRu = string(statement, 2)
+            let glossDe = string(statement, 3)
+            let examples = decodeStringArray(string(statement, 4))
+            let synonyms = decodeStringArray(string(statement, 5))
+            senses.append(DictionarySense(pos: pos, glossRu: glossRu, glossDe: glossDe, examples: examples, synonyms: synonyms))
         }
 
         guard !senses.isEmpty else { return nil }

@@ -11,9 +11,9 @@ struct WordLookupView: View {
     @State private var lookedUp = false
 
     @State private var translationConfiguration: TranslationSession.Configuration?
-    @State private var pendingExplanationText = ""
-    @State private var explanationTranslation = ""
-    @State private var isTranslatingExplanation = false
+    @State private var pendingTranslationText = ""
+    @State private var translationResults: [String: String] = [:]
+    @State private var translatingKey: String?
 
     var body: some View {
         NavigationStack {
@@ -42,14 +42,13 @@ struct WordLookupView: View {
             lookedUp = true
         }
         .translationTask(translationConfiguration) { session in
-            guard !pendingExplanationText.isEmpty else { return }
-            isTranslatingExplanation = true
-            defer { isTranslatingExplanation = false }
+            guard !pendingTranslationText.isEmpty else { return }
+            defer { translatingKey = nil }
             do {
-                let response = try await session.translate(pendingExplanationText)
-                explanationTranslation = response.targetText
+                let response = try await session.translate(pendingTranslationText)
+                translationResults[pendingTranslationText] = response.targetText
             } catch {
-                explanationTranslation = ""
+                translationResults[pendingTranslationText] = nil
             }
         }
     }
@@ -59,19 +58,6 @@ struct WordLookupView: View {
         if let entry {
             ForEach(Array(entry.senses.enumerated()), id: \.offset) { index, sense in
                 senseCard(index: index + 1, sense: sense)
-            }
-
-            translateButton(for: entry)
-
-            if !explanationTranslation.isEmpty {
-                glassCard {
-                    Text("Перевод")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.gray)
-                    Text(explanationTranslation)
-                        .foregroundStyle(.white)
-                        .textSelection(.enabled)
-                }
             }
         } else if lookedUp {
             Text("В офлайн-словаре нет статьи для «\(term)».")
@@ -88,10 +74,25 @@ struct WordLookupView: View {
                 Text("\(index).")
                     .foregroundStyle(.gray)
                     .font(.headline)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(sense.gloss)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(sense.displayGloss)
                         .foregroundStyle(.white)
                         .font(.headline)
+
+                    if !sense.hasCuratedTranslation {
+                        HStack(spacing: 8) {
+                            Text("нет перевода в словаре")
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                            translateChip(for: sense.glossDe)
+                        }
+                        if let translated = translationResults[sense.glossDe] {
+                            Text(translated)
+                                .foregroundStyle(.gray)
+                                .font(.footnote)
+                        }
+                    }
+
                     if !sense.pos.isEmpty {
                         Text(sense.pos)
                             .foregroundStyle(.gray)
@@ -101,11 +102,7 @@ struct WordLookupView: View {
             }
 
             ForEach(sense.examples, id: \.self) { example in
-                Text(example)
-                    .foregroundStyle(.white.opacity(0.85))
-                    .italic()
-                    .font(.footnote)
-                    .padding(.leading, 4)
+                exampleRow(example)
             }
 
             if !sense.synonyms.isEmpty {
@@ -138,31 +135,44 @@ struct WordLookupView: View {
         )
     }
 
-    private func translateButton(for entry: DictionaryEntry) -> some View {
-        Button {
-            translateExplanation(for: entry)
-        } label: {
-            HStack {
-                if isTranslatingExplanation {
-                    ProgressView().tint(.white)
-                } else {
-                    Image(systemName: "arrow.left.arrow.right")
-                }
-                Text("Перевести объяснение")
+    private func exampleRow(_ example: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .top, spacing: 8) {
+                Text(example)
+                    .foregroundStyle(.white.opacity(0.85))
+                    .italic()
+                    .font(.footnote)
+                Spacer()
+                translateChip(for: example)
             }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+            if let translated = translationResults[example] {
+                Text(translated)
+                    .foregroundStyle(.gray)
+                    .font(.footnote)
+            }
         }
-        .disabled(isTranslatingExplanation)
+        .padding(.leading, 4)
     }
 
-    private func translateExplanation(for entry: DictionaryEntry) {
-        let text = entry.senses
-            .map { ([$0.gloss] + $0.examples).joined(separator: ". ") }
-            .joined(separator: "\n")
-        pendingExplanationText = text
+    private func translateChip(for text: String) -> some View {
+        Button {
+            requestTranslation(of: text)
+        } label: {
+            if translatingKey == text {
+                ProgressView().tint(.white)
+            } else {
+                Image(systemName: "arrow.left.arrow.right")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func requestTranslation(of text: String) {
+        guard !text.isEmpty else { return }
+        pendingTranslationText = text
+        translatingKey = text
 
         let targetLanguage = appState.sourceLanguage == .german ? appState.targetLanguage : appState.sourceLanguage
         if translationConfiguration == nil {
@@ -173,15 +183,5 @@ struct WordLookupView: View {
         } else {
             translationConfiguration?.invalidate()
         }
-    }
-
-    private func glassCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 10, content: content)
-            .padding(16)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20))
-            .overlay(
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(.white.opacity(0.08), lineWidth: 1)
-            )
     }
 }
