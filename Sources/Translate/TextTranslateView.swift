@@ -3,7 +3,7 @@ import SwiftUI
 struct TextTranslateView: View {
     @Environment(AppState.self) private var appState
     @State private var sourceText: String = ""
-    @State private var lookupRequest: WordLookupRequest?
+    @State private var lookupTerm: String?
     @State private var dictation = SpeechDictation()
 
     var body: some View {
@@ -64,11 +64,7 @@ struct TextTranslateView: View {
                             }
                         }
 
-                        if let word = singleWord(in: sourceText) {
-                            meaningsButton(word, language: appState.sourceLanguage)
-                        } else {
-                            wordChips(for: sourceText, language: appState.sourceLanguage)
-                        }
+                        lookupSection(for: sourceText, language: appState.sourceLanguage)
 
                         if appState.isTranslating {
                             ProgressView()
@@ -99,11 +95,7 @@ struct TextTranslateView: View {
                                 }
                             }
 
-                            if let word = singleWord(in: appState.translatedText) {
-                                meaningsButton(word, language: appState.targetLanguage)
-                            } else {
-                                wordChips(for: appState.translatedText, language: appState.targetLanguage)
-                            }
+                            lookupSection(for: appState.translatedText, language: appState.targetLanguage)
                         }
 
                         if let lastError = appState.lastError {
@@ -123,14 +115,11 @@ struct TextTranslateView: View {
             .navigationTitle("Translate")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
-            .sheet(item: $lookupRequest) { request in
-                WordLookupView(
-                    term: request.term,
-                    wordLanguage: request.language,
-                    explanationLanguage: request.language == appState.sourceLanguage
-                        ? appState.targetLanguage
-                        : appState.sourceLanguage
-                )
+            .sheet(item: Binding(
+                get: { lookupTerm.map { IdentifiableString(value: $0) } },
+                set: { lookupTerm = $0?.value }
+            )) { item in
+                WordLookupView(term: item.value)
             }
         }
         .tint(.white)
@@ -147,6 +136,19 @@ struct TextTranslateView: View {
         }
     }
 
+    /// The offline dictionary only covers German headwords (built from the
+    /// German Wiktionary), so the lookup UI only appears for German text.
+    @ViewBuilder
+    private func lookupSection(for text: String, language: AppLanguage) -> some View {
+        if language == .german {
+            if let word = singleWord(in: text) {
+                meaningsButton(word)
+            } else {
+                wordChips(for: text)
+            }
+        }
+    }
+
     private func singleWord(in text: String) -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.contains(where: { $0.isWhitespace }) else { return nil }
@@ -155,9 +157,9 @@ struct TextTranslateView: View {
         return cleaned
     }
 
-    private func meaningsButton(_ word: String, language: AppLanguage) -> some View {
+    private func meaningsButton(_ word: String) -> some View {
         Button {
-            lookupRequest = WordLookupRequest(term: word, language: language)
+            lookupTerm = word
         } label: {
             HStack {
                 Image(systemName: "character.book.closed.fill")
@@ -174,7 +176,7 @@ struct TextTranslateView: View {
         .buttonStyle(.plain)
     }
 
-    private func wordChips(for text: String, language: AppLanguage) -> some View {
+    private func wordChips(for text: String) -> some View {
         let words = text
             .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
             .map(String.init)
@@ -188,7 +190,7 @@ struct TextTranslateView: View {
                             Button {
                                 let cleaned = word.trimmingCharacters(in: .punctuationCharacters)
                                 if isLookupCandidate(cleaned) {
-                                    lookupRequest = WordLookupRequest(term: cleaned, language: language)
+                                    lookupTerm = cleaned
                                 }
                             } label: {
                                 Text(word)
@@ -218,8 +220,13 @@ struct TextTranslateView: View {
     }
 }
 
-private struct WordLookupRequest: Identifiable {
-    let term: String
-    let language: AppLanguage
-    var id: String { term + "-" + language.rawValue }
+private struct IdentifiableString: Identifiable {
+    let value: String
+    var id: String { value }
+}
+
+/// Simple heuristic for whether a token is worth looking up at all
+/// (skips empty strings, bare punctuation, and pure numbers).
+func isLookupCandidate(_ term: String) -> Bool {
+    !term.isEmpty && term.contains(where: \.isLetter)
 }

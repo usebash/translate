@@ -21,6 +21,8 @@ targets:
     deploymentTarget: "26.0"
     sources:
       - path: Sources/Translate
+    resources:
+      - path: Sources/Translate/GermanDictionary.sqlite
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: local.translate.translate
@@ -34,3 +36,5 @@ targets:
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Photo library access is used to pick images for on-device text recognition."
         INFOPLIST_KEY_NSMicrophoneUsageDescription: "Microphone access is used when recording video for text recognition and for live conversation translation."
         INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Speech recognition is used on-device to transcribe conversations for live translation."
+    dependencies:
+      - sdk: libsqlite3.tbd
